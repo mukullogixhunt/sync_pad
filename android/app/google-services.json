@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "364015441324",
+    "project_id": "notes-app-58ec9",
+    "storage_bucket": "notes-app-58ec9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364015441324:android:174e65b6825891f2231609",
+        "android_client_info": {
+          "package_name": "com.example.firebase_notes"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "364015441324-eqse3tmv3nhro09gu90ek0m0i87kkm9f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.firebase_notes",
+            "certificate_hash": "0b2ce3a05f66545c3a368dc63a32712c02db0c8d"
+          }
+        },
+        {
+          "client_id": "364015441324-8m3u7hq02rdp1p7hg4jrif3u24f1rv0p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx4jK7iCEv0ceQiHxDBnPnZrHCqm8AM24"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "364015441324-8m3u7hq02rdp1p7hg4jrif3u24f1rv0p.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "364015441324-raodf182eefa9tcplpdov1e99t7eotfh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.firebaseNotes"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364015441324:android:a4f3dddecd0d8b65231609",
+        "android_client_info": {
+          "package_name": "com.example.sync_pad"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "364015441324-8m3u7hq02rdp1p7hg4jrif3u24f1rv0p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx4jK7iCEv0ceQiHxDBnPnZrHCqm8AM24"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "364015441324-8m3u7hq02rdp1p7hg4jrif3u24f1rv0p.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "364015441324-raodf182eefa9tcplpdov1e99t7eotfh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.firebaseNotes"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
