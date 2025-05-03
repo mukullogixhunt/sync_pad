@@ -31,13 +31,14 @@ class _NotesListScreenState extends State<NotesListScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor:
-            isError ? Colors.redAccent.shade100 : Colors.green.shade100,
+            isError ? Colors.redAccent.shade400 : Colors.green.shade400,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         duration: Duration(seconds: isError ? 3 : 2),
 
+
         action:
-            isError ? SnackBarAction(label: 'Dismiss', onPressed: () {}) : null,
+            isError ? SnackBarAction(textColor: Colors.white,label: 'Dismiss', onPressed: () {}) : null,
       ),
     );
   }

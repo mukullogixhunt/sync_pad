@@ -6,8 +6,17 @@ Sync Pad is a simple yet robust Flutter application demonstrating an **Offline-F
 
 The core goal is to showcase a clean, scalable architecture where the user can create, read, update, and delete notes seamlessly, whether online or offline. Changes made offline are automatically synced to Firestore when connectivity is restored.
 
-![App Screenshot](assets/screenshot_placeholder.png)
-*(Optional: Replace this with a link to an actual screenshot or GIF of your app)*
+## 📸 Screenshots
+
+### 🔌 Offline Mode
+![Offline Mode](screenshots/offline_mode.jpeg)
+
+### 🌐 Online Mode
+![Online Mode](screenshots/online_mode.jpeg)
+
+## 🎥 Screen Recording
+
+[🎬 Watch Demo Video](screenshots/demo.mp4)
 
 ## Features
 
@@ -74,10 +83,10 @@ UI -> `NotesBloc` (receives SaveNoteEvent) -> `SaveNoteUseCase` -> `NoteReposito
 
 ### 1. Clone the Repository
 
-\`\`\`bash
-git clone <your-repository-url>
+```bash
+git clone https://github.com/mukullogixhunt/sync_pad.git
 cd sync_pad # Or your project directory name
-\`\`\`
+```
 
 ### 2. Firebase Project Setup
 
@@ -102,24 +111,24 @@ cd sync_pad # Or your project directory name
 ### 4. Install Dependencies
 
 *   Run the following command in your project's root directory:
-    \`\`\`bash
+    ```bash
     flutter pub get
-    \`\`\`
+    ```
 
 ### 5. Run Code Generation
 
 *   Hive requires generated adapter code. Run the build runner:
-    \`\`\`bash
+    ```bash
     flutter pub run build_runner build --delete-conflicting-outputs
-    \`\`\`
+    ```
 
 ## Running the App
 
 1.  Ensure you have a connected emulator or physical device running.
 2.  Run the app from your IDE or using the terminal:
-    \`\`\`bash
+    ```bash
     flutter run
-    \`\`\`
+    ```
 
 ## Folder Structure (Simplified)
 
