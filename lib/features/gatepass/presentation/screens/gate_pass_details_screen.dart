@@ -68,9 +68,13 @@ class GatePassDetailView extends StatelessWidget {
     final statusIcon = _getStatusIcon(gatePass.status);
 
     final isApprover = currentUser.uid == gatePass.approverId;
+    final isRequester = currentUser.uid == gatePass.requesterId;
 
     final canTakeAction = isApprover && gatePass.status == 'requested';
-    final canMarkAsComplete = isApprover && gatePass.status == 'accepted';
+    final canMarkAsComplete =
+        (isApprover || isRequester) && gatePass.status == 'accepted';
+    final canMarkAsInComplete =
+        (isApprover || isRequester) && gatePass.status == 'completed';
 
     final bool hasDo = gatePass.doNumber.isNotEmpty;
     final bool hasLot = gatePass.lotNumber.isNotEmpty;
@@ -223,7 +227,11 @@ class GatePassDetailView extends StatelessWidget {
       bottomNavigationBar:
           canTakeAction
               ? _buildActionNavBar(context)
-              : (canMarkAsComplete ? _buildCompleteNavBar(context) : null),
+              : canMarkAsComplete
+              ? _buildCompleteNavBar(context)
+              : canMarkAsInComplete
+              ? _buildInCompleteNavBar(context)
+              : null,
     );
   }
 
@@ -307,7 +315,8 @@ class GatePassDetailView extends StatelessWidget {
   Widget _buildCompleteNavBar(BuildContext context) {
     return BlocListener<RequestGatePassBloc, RequestGatePassState>(
       listener: (context, state) {
-        if (state is RequestGatePassUpdated || state is RequestGatePassSuccess) {
+        if (state is RequestGatePassUpdated ||
+            state is RequestGatePassSuccess) {
           // Pop back to the list screen, which will then refresh.
           Navigator.of(context).pop(true);
         }
@@ -328,17 +337,21 @@ class GatePassDetailView extends StatelessWidget {
           child: ElevatedButton.icon(
             icon: const Icon(Icons.task_alt_rounded),
             label: const Text('Mark as Complete'),
-            onPressed: () => context.read<RequestGatePassBloc>().add(
-              UpdateStatusRequested(
-                passId: gatePass.id,
-                newStatus: 'completed',
-              ),
-            ),
+            onPressed:
+                () => context.read<RequestGatePassBloc>().add(
+                  UpdateStatusRequested(
+                    passId: gatePass.id,
+                    newStatus: 'completed',
+                  ),
+                ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue.shade600,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
@@ -346,6 +359,52 @@ class GatePassDetailView extends StatelessWidget {
     );
   }
 
+  Widget _buildInCompleteNavBar(BuildContext context) {
+    return BlocListener<RequestGatePassBloc, RequestGatePassState>(
+      listener: (context, state) {
+        if (state is RequestGatePassUpdated ||
+            state is RequestGatePassSuccess) {
+          // Pop back to the list screen, which will then refresh.
+          Navigator.of(context).pop(true);
+        }
+      },
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.restart_alt),
+            label: const Text('Mark not Completed'),
+            onPressed:
+                () => context.read<RequestGatePassBloc>().add(
+                  UpdateStatusRequested(
+                    passId: gatePass.id,
+                    newStatus: 'accepted',
+                  ),
+                ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // InfoRow and AuditStep widgets remain unchanged and are perfect.

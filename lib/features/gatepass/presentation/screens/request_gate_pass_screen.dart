@@ -49,6 +49,8 @@ class _RequestGatePassViewState extends State<RequestGatePassView> {
   final TextEditingController _centreController = TextEditingController();
   final TextEditingController _partyNameController = TextEditingController();
 
+  final TextEditingController _userSelectorController = TextEditingController();
+
   AuthUserEntity? _selectedUser;
 
   @override
@@ -59,8 +61,119 @@ class _RequestGatePassViewState extends State<RequestGatePassView> {
     _weightController.dispose();
     _centreController.dispose();
     _partyNameController.dispose();
+    _userSelectorController.dispose();
 
     super.dispose();
+  }
+
+  void _showUserSelectionDialog(List<AuthUserEntity> users) {
+    String searchQuery = '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      // Allows the modal to take up more screen height
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        // Use a StatefulWidget here to manage the search query state locally
+        return Padding(
+          padding:  EdgeInsets.only(
+
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+
+          ),
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setModalState) {
+              final filteredUsers =
+                  users
+                      .where(
+                        (user) =>
+                            user.displayName.toLowerCase().contains(
+                              searchQuery.toLowerCase(),
+                            ) ||
+                            user.email.toLowerCase().contains(
+                              searchQuery.toLowerCase(),
+                            ),
+                      )
+                      .toList();
+              return DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.6, // Start at 60% of screen height
+                maxChildSize: 0.9, // Can be dragged up to 90%
+                builder: (_, scrollController) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min, // Important for Column sizing
+
+                    children: [
+                      // --- Modal Header ---
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'Select  Approver',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      // --- Search Bar ---
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: TextField(
+                          onChanged: (value) {
+                            setModalState(() {
+                              searchQuery = value;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Search by name or email...',
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Divider(height: 20),
+                      // --- User List ---
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: filteredUsers.length,
+                          itemBuilder: (context, index) {
+                            final user = filteredUsers[index];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                child: Text(
+                                  user.displayName.isNotEmpty
+                                      ? user.displayName[0]
+                                      : '?',
+                                ),
+                              ),
+                              title: Text(user.displayName),
+                              subtitle: Text(user.email),
+                              onTap: () {
+                                // --- This is where the selection happens ---
+                                setState(() {
+                                  _selectedUser = user;
+                                  _userSelectorController.text =
+                                      user.displayName; // Update the form field text
+                                });
+                                Navigator.of(context).pop(); // Close the modal
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   void _submitRequest() {
@@ -228,55 +341,104 @@ class _RequestGatePassViewState extends State<RequestGatePassView> {
                 children: [
                   _buildSectionHeader(context, "Request Details"),
                   const SizedBox(height: 16),
+
+                  // BlocBuilder<UsersBloc, UsersState>(
+                  //   builder: (context, usersState) {
+                  //     if (usersState is UsersLoading) {
+                  //       return const Center(child: CircularProgressIndicator());
+                  //     }
+                  //     if (usersState is UsersFailure) {
+                  //       return Center(
+                  //         child: Text(
+                  //           'Failed to load users: ${usersState.message}',
+                  //         ),
+                  //       );
+                  //     }
+                  //     if (usersState is UsersLoaded) {
+                  //       // Filter out the current user from the list of approvers
+                  //       final availableUsers =
+                  //           usersState.users
+                  //               .where((user) => user.uid != widget.user.uid)
+                  //               .toList();
+                  //       return DropdownButtonFormField<AuthUserEntity>(
+                  //         value: _selectedUser,
+                  //         decoration: const InputDecoration(
+                  //           labelText: 'Request To',
+                  //           border: OutlineInputBorder(),
+                  //           prefixIcon: Icon(Icons.person_outline),
+                  //         ),
+                  //         hint: const Text('Select an approver'),
+                  //         items:
+                  //             availableUsers
+                  //                 .map(
+                  //                   (user) => DropdownMenuItem<AuthUserEntity>(
+                  //                     value: user,
+                  //                     child: Text(user.displayName),
+                  //                   ),
+                  //                 )
+                  //                 .toList(),
+                  //         onChanged:
+                  //             (user) => setState(() => _selectedUser = user),
+                  //         validator:
+                  //             (value) =>
+                  //                 value == null
+                  //                     ? 'Please select an approver'
+                  //                     : null,
+                  //       );
+                  //     }
+                  //     return const Center(
+                  //       child: Text("Initializing user list..."),
+                  //     );
+                  //   },
+                  // ),
                   BlocBuilder<UsersBloc, UsersState>(
                     builder: (context, usersState) {
-                      if (usersState is UsersLoading) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (usersState is UsersFailure) {
-                        return Center(
-                          child: Text(
-                            'Failed to load users: ${usersState.message}',
-                          ),
-                        );
-                      }
                       if (usersState is UsersLoaded) {
-                        // Filter out the current user from the list of approvers
                         final availableUsers =
                             usersState.users
                                 .where((user) => user.uid != widget.user.uid)
                                 .toList();
-                        return DropdownButtonFormField<AuthUserEntity>(
-                          value: _selectedUser,
-                          decoration: const InputDecoration(
+                        return TextFormField(
+                          controller: _userSelectorController,
+                          readOnly: true,
+                          // Makes the field not editable directly
+                          decoration: InputDecoration(
                             labelText: 'Request To',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.person_outline),
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.person_outline),
+                            suffixIcon: const Icon(Icons.arrow_drop_down),
+                            hintText: 'Select an approver',
                           ),
-                          hint: const Text('Select an approver'),
-                          items:
-                              availableUsers
-                                  .map(
-                                    (user) => DropdownMenuItem<AuthUserEntity>(
-                                      value: user,
-                                      child: Text(user.displayName),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (user) => setState(() => _selectedUser = user),
-                          validator:
-                              (value) =>
-                                  value == null
-                                      ? 'Please select an approver'
-                                      : null,
+                          onTap: () {
+                            // Open our custom selection modal on tap
+                            _showUserSelectionDialog(availableUsers);
+                          },
+                          validator: (value) {
+                            if (_selectedUser == null) {
+                              return 'Please select an approver';
+                            }
+                            return null;
+                          },
                         );
                       }
-                      return const Center(
-                        child: Text("Initializing user list..."),
+                      // Show a disabled field while loading/error
+                      return TextFormField(
+                        readOnly: true,
+                        decoration: InputDecoration(
+                          labelText: 'Request To',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.person_outline),
+                          hintText:
+                              usersState is UsersLoading
+                                  ? 'Loading users...'
+                                  : 'Could not load users',
+                          filled: true,
+                          fillColor: Colors.grey.shade200,
+                        ),
                       );
                     },
                   ),
+
                   const SizedBox(height: 24),
                   _buildSectionHeader(context, "Required Information"),
                   const SizedBox(height: 16),
