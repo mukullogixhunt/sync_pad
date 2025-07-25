@@ -1,12 +1,24 @@
+import 'dart:developer';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:sync_pad/core/database/hive_setup.dart';
+import 'package:sync_pad/features/auth/presentation/bloc/auth/auth_bloc.dart';
+import 'package:sync_pad/features/auth/presentation/bloc/auth_form/auth_form_bloc.dart';
+import 'package:sync_pad/features/chat/presentation/bloc/chats/chats_bloc.dart';
 import 'package:sync_pad/features/notes/presentation/bloc/notes_bloc.dart';
-import 'package:sync_pad/features/notes/presentation/screens/notes_list_screen.dart';
 import 'package:sync_pad/injection_container.dart' as di;
+
+import 'features/auth/presentation/bloc/users/users_bloc.dart';
+import 'features/auth/presentation/screens/auth_wrapper.dart';
+import 'features/chat/presentation/bloc/chat_details/chat_details_bloc.dart';
+import 'features/chat/presentation/bloc/messages/messages_bloc.dart';
+import 'features/chat/presentation/bloc/read_message/read_message_bloc.dart';
+import 'features/chat/presentation/bloc/send_message/send_message_bloc.dart';
+import 'features/gatepass/presentation/bloc/list/gate_pass_bloc.dart';
+import 'features/gatepass/presentation/bloc/request/request_gate_pass_bloc.dart';
 import 'firebase_options.dart';
-import 'dart:developer';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,9 +53,20 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider<NotesBloc>(
-          create: (context) => di.sl<NotesBloc>()..add(LoadNotesEvent()),
+        BlocProvider(create: (context) => di.sl<AuthBloc>()),
+        BlocProvider(create: (context) => di.sl<AuthFormBloc>()),
+        BlocProvider(
+          create: (context) => di.sl<UsersBloc>()..add(GetAllUsersEvent()),
         ),
+        BlocProvider(create: (context) => di.sl<NotesBloc>()),
+        BlocProvider(create: (context) => di.sl<ChatsBloc>()),
+        BlocProvider(create: (context) => di.sl<ChatDetailsBloc>()),
+        BlocProvider(create: (context) => di.sl<ChatsBloc>()),
+        BlocProvider(create: (context) => di.sl<MessagesBloc>()),
+        BlocProvider(create: (context) => di.sl<ReadMessageBloc>()),
+        BlocProvider(create: (context) => di.sl<SendMessageBloc>()),
+        BlocProvider(create: (context) => di.sl<GatePassBloc>()),
+        BlocProvider(create: (context) => di.sl<RequestGatePassBloc>()),
       ],
       child: MaterialApp(
         title: 'Sync Pad',
@@ -55,7 +78,8 @@ class MyApp extends StatelessWidget {
             scrolledUnderElevation: 1,
           ),
         ),
-        home: const NotesListScreen(),
+        // home: const NotesListScreen(),
+        home: const AuthWrapper(),
         debugShowCheckedModeBanner: false,
       ),
     );

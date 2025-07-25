@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sync_pad/features/notes/data/models/note_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sync_pad/core/error/exceptions.dart';
@@ -14,18 +15,40 @@ abstract class RemoteNoteDataSource {
 
 class FirestoreRemoteNoteDataSourceImpl implements RemoteNoteDataSource {
   final FirebaseFirestore firestore;
+  final FirebaseAuth firebaseAuth; // <-- 2. ADD FirebaseAuth instance variable
 
-  late final CollectionReference _notesCollection;
 
-  FirestoreRemoteNoteDataSourceImpl({required this.firestore}) {
-    _notesCollection = firestore.collection('notes');
+  // The constructor now requires both Firestore and FirebaseAuth
+  FirestoreRemoteNoteDataSourceImpl({
+    required this.firestore,
+    required this.firebaseAuth, // <-- 3. ADD to constructor
+  });
+
+  // late final CollectionReference _notesCollection;
+  //
+  // FirestoreRemoteNoteDataSourceImpl({required this.firestore}) {
+  //   _notesCollection = firestore.collection('notes');
+  // }
+
+
+  // 4. CHANGE _notesCollection to a method that gets the current user's specific collection
+  CollectionReference<Map<String, dynamic>> _getNotesCollection() {
+    final user = firebaseAuth.currentUser;
+    if (user == null) {
+      // This is a critical state. If no user is logged in, we cannot proceed.
+      // Throwing an exception here is appropriate as it's an invalid state for this data source.
+      throw ServerException('User is not authenticated. Cannot access notes.');
+    }
+    // This dynamically builds the correct path: 'users/{userId}/notes'
+    return firestore.collection('users').doc(user.uid).collection('notes');
   }
+
 
   @override
   Future<List<NoteModel>> getNotesFromFirestore() async {
     try {
       final querySnapshot =
-          await _notesCollection.orderBy('updatedAt', descending: true).get();
+          await _getNotesCollection().orderBy('updatedAt', descending: true).get();
 
       final notes =
           querySnapshot.docs
@@ -47,7 +70,7 @@ class FirestoreRemoteNoteDataSourceImpl implements RemoteNoteDataSource {
   @override
   Future<void> saveNoteToFirestore(NoteModel note) async {
     try {
-      await _notesCollection
+      await _getNotesCollection()
           .doc(note.id)
           .set(note.toFirestoreMap(), SetOptions(merge: true));
       log("Saved/Updated note ID '${note.id}' to Firestore.");
@@ -65,7 +88,7 @@ class FirestoreRemoteNoteDataSourceImpl implements RemoteNoteDataSource {
   @override
   Future<void> deleteNoteFromFirestore(String id) async {
     try {
-      await _notesCollection.doc(id).delete();
+      await _getNotesCollection().doc(id).delete();
       log("Deleted note ID '$id' from Firestore.");
     } on FirebaseException catch (e) {
       log("FirebaseException deleting note $id: ${e.code} - ${e.message}");

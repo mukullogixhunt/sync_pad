@@ -9,7 +9,9 @@ import 'package:sync_pad/features/notes/domain/usecases/refresh_notes.dart';
 import 'package:sync_pad/features/notes/domain/usecases/save_note.dart';
 import 'package:sync_pad/features/notes/domain/usecases/sync_notes.dart';
 import 'package:sync_pad/features/notes/presentation/bloc/notes_bloc.dart';
-import 'package:sync_pad/injection_container.dart'; // Access sl
+import 'package:sync_pad/injection_container.dart';
+
+import 'domain/usecases/clear_local_notes.dart'; // Access sl
 
 void initNotesFeature() {
   // --- Bloc ---
@@ -30,6 +32,8 @@ void initNotesFeature() {
   sl.registerLazySingleton(() => DeleteNote(repository: sl()));
   sl.registerLazySingleton(() => SyncNotes(repository: sl()));
   sl.registerLazySingleton(() => RefreshNotes(repository: sl()));
+  sl.registerLazySingleton(() => ClearLocalNotes(repository: sl()));
+
 
   // --- Repository ---
   sl.registerLazySingleton<NoteRepository>(
@@ -45,6 +49,6 @@ void initNotesFeature() {
         () => HiveLocalNoteDataSourceImpl(),
   );
   sl.registerLazySingleton<RemoteNoteDataSource>(
-        () => FirestoreRemoteNoteDataSourceImpl(firestore: sl()),
+        () => FirestoreRemoteNoteDataSourceImpl(firestore: sl(), firebaseAuth: sl()),
   );
 }

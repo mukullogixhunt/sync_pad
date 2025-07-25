@@ -1,11 +1,18 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:sync_pad/features/notes/data/models/note_model.dart';
 import 'package:sync_pad/features/notes/domain/entities/note_entity.dart';
 import 'package:sync_pad/features/notes/presentation/bloc/notes_bloc.dart';
 import 'package:sync_pad/features/notes/presentation/screens/add_edit_note_screen.dart';
-import 'dart:developer';
+
+import '../../../../core/database/hive_setup.dart';
+import '../../../auth/presentation/bloc/auth/auth_bloc.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../chat/presentation/screens/conversations_screen.dart';
 
 class NotesListScreen extends StatefulWidget {
   const NotesListScreen({super.key});
@@ -15,8 +22,14 @@ class NotesListScreen extends StatefulWidget {
 }
 
 class _NotesListScreenState extends State<NotesListScreen> {
+  int _titleTapCount = 0;
+  DateTime? _lastTitleTapTime;
+  final Duration _tapTimeout = const Duration(seconds: 2);
+
   @override
   void initState() {
+    context.read<NotesBloc>().add(LoadNotesEvent());
+
     super.initState();
   }
 
@@ -36,9 +49,14 @@ class _NotesListScreenState extends State<NotesListScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         duration: Duration(seconds: isError ? 3 : 2),
 
-
         action:
-            isError ? SnackBarAction(textColor: Colors.white,label: 'Dismiss', onPressed: () {}) : null,
+            isError
+                ? SnackBarAction(
+                  textColor: Colors.white,
+                  label: 'Dismiss',
+                  onPressed: () {},
+                )
+                : null,
       ),
     );
   }
@@ -87,84 +105,151 @@ class _NotesListScreenState extends State<NotesListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<NotesBloc, NotesState>(
+    return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        if (state.status == NotesStatus.failure && state.errorMessage != null) {
-          if (!state.errorMessage!.toLowerCase().contains('offline')) {
-            _showSnackbar(
-              context,
-              "Error: ${state.errorMessage}",
-              isError: true,
-            );
-          }
+        if (state.status == AuthStatus.unauthenticated) {
+          Hive.box<NoteModel>(HiveBoxes.notes).clear();
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => LoginScreen()),
+            (Route<dynamic> route) => false, // remove all
+          );
         }
       },
-      builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Sync Pad'),
-            elevation: 1.0,
-            shadowColor: Colors.black26,
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.inversePrimary.withOpacity(0.1),
+      child: BlocConsumer<NotesBloc, NotesState>(
+        listener: (context, state) {
+          if (state.status == NotesStatus.failure &&
+              state.errorMessage != null) {
+            if (!state.errorMessage!.toLowerCase().contains('offline')) {
+              _showSnackbar(
+                context,
+                "Error: ${state.errorMessage}",
+                isError: true,
+              );
+            }
+          }
+        },
+        builder: (context, state) {
+          return Scaffold(
+            appBar: AppBar(
+              title: BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, state) {
+                  final user = state.user;
 
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(24.0),
-              child: _buildStatusIndicator(context, state),
-            ),
-            actions: [
-              Tooltip(
-                message: state.isConnected ? "Online" : "Offline",
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Icon(
-                    state.isConnected ? Icons.wifi : Icons.wifi_off,
-                    color:
-                        state.isConnected
-                            ? Colors.green.shade600
-                            : Colors.grey.shade500,
+                  return GestureDetector(
+                    onTap: () {
+                      final now = DateTime.now();
+                      // Reset counter if taps are too far apart
+                      if (_lastTitleTapTime == null ||
+                          now.difference(_lastTitleTapTime!) > _tapTimeout) {
+                        _titleTapCount = 1;
+                      } else {
+                        _titleTapCount++;
+                      }
+                      _lastTitleTapTime = now;
+
+                      if (_titleTapCount >= 5) {
+                        _titleTapCount = 0; // Reset after triggering
+                        log("Hidden chat feature triggered!");
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ConversationsScreen(user: user!),
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Sync Pad'),
+                  );
+                },
+              ),
+              elevation: 1.0,
+              shadowColor: Colors.black26,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.inversePrimary.withOpacity(0.1),
+
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(24.0),
+                child: _buildStatusIndicator(context, state),
+              ),
+              actions: [
+                BlocBuilder<AuthBloc, AuthState>(
+                  builder: (context, state) {
+                    final user = state.user;
+                    return user != null
+                        ? Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Center(
+                            child: Text(
+                              'Hi, ${user.displayName.split(' ').first}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        )
+                        : const SizedBox.shrink();
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Logout',
+                  onPressed: () {
+                    context.read<AuthBloc>().add(LogoutRequested());
+                  },
+                ),
+
+                Tooltip(
+                  message: state.isConnected ? "Online" : "Offline",
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Icon(
+                      state.isConnected ? Icons.wifi : Icons.wifi_off,
+                      color:
+                          state.isConnected
+                              ? Colors.green.shade600
+                              : Colors.grey.shade500,
+                    ),
                   ),
                 ),
-              ),
 
-              _buildSyncButton(context, state),
-              const SizedBox(width: 8),
-            ],
-          ),
+                _buildSyncButton(context, state),
+                const SizedBox(width: 8),
+              ],
+            ),
 
-          body: RefreshIndicator(
-            onRefresh: () async {
-              if (context.read<NotesBloc>().state.isConnected) {
-                context.read<NotesBloc>().add(TriggerRefreshEvent());
-              } else {
-                _showSnackbar(
+            body: RefreshIndicator(
+              onRefresh: () async {
+                if (context.read<NotesBloc>().state.isConnected) {
+                  context.read<NotesBloc>().add(TriggerRefreshEvent());
+                } else {
+                  _showSnackbar(
+                    context,
+                    "Cannot refresh while offline.",
+                    isError: true,
+                  );
+                }
+              },
+
+              child: _buildBodyContent(context, state),
+            ),
+
+            floatingActionButton: FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
                   context,
-                  "Cannot refresh while offline.",
-                  isError: true,
+                  MaterialPageRoute(
+                    builder: (_) => const AddEditNoteScreen(note: null),
+                  ),
                 );
-              }
-            },
-
-            child: _buildBodyContent(context, state),
-          ),
-
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AddEditNoteScreen(note: null),
-                ),
-              );
-            },
-            tooltip: 'Add New Note',
-            icon: const Icon(Icons.add),
-            label: const Text("Add Note"),
-            elevation: 4.0,
-          ),
-        );
-      },
+              },
+              tooltip: 'Add New Note',
+              icon: const Icon(Icons.add),
+              label: const Text("Add Note"),
+              elevation: 4.0,
+            ),
+          );
+        },
+      ),
     );
   }
 

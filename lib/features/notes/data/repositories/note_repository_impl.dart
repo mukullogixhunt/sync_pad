@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:dartz/dartz.dart';
 import 'package:sync_pad/core/error/exceptions.dart';
 import 'package:sync_pad/core/error/failures.dart';
@@ -7,7 +9,6 @@ import 'package:sync_pad/features/notes/data/datasources/remote/remote_note_data
 import 'package:sync_pad/features/notes/data/models/note_model.dart';
 import 'package:sync_pad/features/notes/domain/entities/note_entity.dart';
 import 'package:sync_pad/features/notes/domain/repositories/note_repository.dart';
-import 'dart:developer';
 
 class NoteRepositoryImpl implements NoteRepository {
   final LocalNoteDataSource localDataSource;
@@ -32,6 +33,25 @@ class NoteRepositoryImpl implements NoteRepository {
       return Right(localNotes);
     } on CacheException catch (e) {
       log("[Repository] CacheException getting notes: ${e.message}");
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      log("[Repository] Unexpected error getting notes: $e");
+      return Left(UnexpectedFailure("Failed to get notes: ${e.toString()}"));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> clearAllLocalNotes() async {
+    log("[Repository] Clearing notes from local data source...");
+
+    try {
+      await localDataSource.clearAll();
+      log("[Repository] Successfully cleared notes locally.");
+
+      return const Right(null);
+    } on CacheException catch (e) {
+      log("[Repository] CacheException getting notes: ${e.message}");
+
       return Left(CacheFailure(e.message));
     } catch (e) {
       log("[Repository] Unexpected error getting notes: $e");

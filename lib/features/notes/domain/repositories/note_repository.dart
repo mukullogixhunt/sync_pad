@@ -11,5 +11,9 @@ abstract class NoteRepository {
 
   Future<Either<Failure, void>> syncNotes();
 
+
+  Future<Either<Failure, void>> clearAllLocalNotes();
+
+
   Future<Either<Failure, List<NoteEntity>>> refreshNotesFromRemote();
 }

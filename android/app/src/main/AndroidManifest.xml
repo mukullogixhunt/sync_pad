@@ -1,4 +1,39 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+
+    <!-- 1. For Internet Access (already present, but confirm) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 2. For Camera Access -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 3. For Storage Access (needed for Android 12 and below) -->
+    <!-- The 'maxSdkVersion' ensures this permission is only requested on older versions -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- 4. For Granular Media Access (needed for Android 13+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" /> <!-- Optional, but good to have -->
+
+    <!-- 5. For URL Launcher -->
+    <!-- This allows your app to query which apps can handle certain URLs -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mailto" />
+        </intent>
+    </queries>
+
+
     <application
         android:label="Sync Pad"
         android:name="${applicationName}"
