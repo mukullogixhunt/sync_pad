@@ -3,11 +3,17 @@ import 'dart:io';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path/path.dart' as path;
 import 'package:sync_pad/core/utils/media_picker_service.dart'; // Import services
 import 'package:sync_pad/core/utils/permission_service.dart'; // Import services
 
 import '../../../auth/domain/entities/auth_user_entity.dart';
+import '../../../gatepass/domain/entities/gate_pass_entity.dart';
+import '../../../gatepass/domain/usecases/request_gate_pass_usecase.dart';
+import '../../../gatepass/presentation/bloc/request/request_gate_pass_bloc.dart';
 import '../../domain/entities/chats_entity.dart';
+import '../../domain/entities/messages_entity.dart';
+import '../bloc/chat_details/chat_details_bloc.dart';
 import '../bloc/messages/messages_bloc.dart';
 import '../bloc/read_message/read_message_bloc.dart';
 import '../bloc/send_message/send_message_bloc.dart';
@@ -33,6 +39,65 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
   // Instantiate our new services
   final PermissionService _permissionService = PermissionService();
   final MediaPickerService _mediaPickerService = MediaPickerService();
+
+  final List<MessagesEntity> _sendingMessages = [];
+
+  ///gate pass forward
+  String _forwardedGatePassId = "";
+  AuthUserEntity? _forwardedToUser;
+  GatePassEntity? _forwardedGatePass;
+
+  void _findOrCreateChat(AuthUserEntity participant2, bool isMatched) {
+    context.read<ChatDetailsBloc>().add(
+      CheckOrCreateChatEvent(
+        user: ChatUserEntity(
+          userId: widget.user.uid,
+          name: widget.user.displayName,
+          unreadCount: 0,
+          profilePicture: "",
+          lastOnline: DateTime.now(),
+          email: widget.user.email,
+        ),
+        targetUser: ChatUserEntity(
+          userId: participant2.uid,
+          name: participant2.displayName,
+          unreadCount: 0,
+          profilePicture: "",
+          lastOnline: DateTime.now(),
+          email: participant2.email,
+        ),
+        isMatched: isMatched,
+      ),
+    );
+  }
+
+
+  void _sendGatePassMessage(String chatId, String recipientId) {
+    final partyName = _forwardedGatePass!.partyName;
+    final doValue = _forwardedGatePass!.doNumber;
+    final lotValue = _forwardedGatePass!.lotNumber;
+
+    String formattedMessage;
+    if (doValue.isNotEmpty && lotValue.isNotEmpty) {
+      formattedMessage =
+          'Party Name: $partyName\nDO No: $doValue\nLot No: $lotValue';
+    } else if (doValue.isNotEmpty) {
+      formattedMessage = 'Party Name: $partyName\nDO No: $doValue';
+    } else {
+      formattedMessage = 'Party Name: $partyName\nLot No: $lotValue';
+    }
+
+    context.read<SendMessageBloc>().add(
+      SendSystemMessageEvent(
+        chatId: chatId,
+        sentBy: widget.user.uid,
+        recipientId: recipientId,
+        message: formattedMessage,
+        type: 'gatepass',
+        referenceId: _forwardedGatePassId,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -86,6 +151,25 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
   }
 
   void _sendImageMessage(File imageFile) {
+    // 1. Create the temporary message entity
+    final tempMessage = MessagesEntity(
+      messageId: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      // Unique temp ID
+      storagePath: imageFile.path,
+      // The local path for the thumbnail
+      message: '',
+      sentBy: widget.user.uid,
+      status: 'sending',
+      // <-- The crucial status
+      type: 'image',
+      timestamp: DateTime.now(),
+    );
+
+    // 2. Add it to the local list and rebuild the UI
+    setState(() {
+      _sendingMessages.add(tempMessage);
+    });
+
     context.read<SendMessageBloc>().add(
       SendImageMessageEvent(
         chatId: widget.chat.chatId,
@@ -97,6 +181,21 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
   }
 
   void _sendDocumentMessage(File docFile) {
+    final tempMessage = MessagesEntity(
+      messageId: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      storagePath: docFile.path,
+      message: path.basename(docFile.path),
+      sentBy: widget.user.uid,
+      status: 'sending',
+      type: 'file',
+      // or 'pdf'
+      timestamp: DateTime.now(),
+    );
+
+    setState(() {
+      _sendingMessages.add(tempMessage);
+    });
+
     context.read<SendMessageBloc>().add(
       SendDocumentMessageEvent(
         chatId: widget.chat.chatId,
@@ -108,8 +207,6 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
   }
 
   // --- NEW METHODS FOR ATTACHMENTS ---
-
-  // REPLACE your old _onEmojiIconPressed method with this one.
   void _onEmojiIconPressed() {
     // If the emoji picker is already visible, tapping the icon should open the keyboard.
     if (_showEmojiPicker) {
@@ -221,17 +318,82 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
       child: Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: _buildAppBar(context),
-        body: BlocListener<SendMessageBloc, SendMessageState>(
-          listener: (context, state) {
-            if (state is MessageSent) {
-              FocusScope.of(context).unfocus();
-              if (_showEmojiPicker) {
-                setState(() {
-                  _showEmojiPicker = false;
-                });
-              }
-            }
-          },
+        body: MultiBlocListener(
+          listeners: [
+            BlocListener<SendMessageBloc, SendMessageState>(
+              listener: (context, state) {
+                if (state is MessageSent || state is SendMessageFailure) {
+                  setState(() {
+                    _sendingMessages.clear();
+                  });
+                }
+                if (state is MessageSent) {
+                  FocusScope.of(context).unfocus();
+                  if (_showEmojiPicker) {
+                    setState(() {
+                      _showEmojiPicker = false;
+                    });
+                  }
+                }
+                if (state is SendMessageFailure) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to send: ${state.message}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+
+            BlocListener<RequestGatePassBloc, RequestGatePassState>(
+              listener: (context, state) {
+                if (state is RequestGatePassSuccess) {
+                  _forwardedGatePassId = state.gatePassId;
+
+                  _findOrCreateChat(_forwardedToUser!, true);
+                }
+                if (state is RequestGatePassError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+            BlocListener<ChatDetailsBloc, ChatDetailsState>(
+              listener: (context, state) {
+                if (state is ChatDetailsLoaded) {
+                  Navigator.of(context, rootNavigator: true).pop();
+
+                  final chat = state.chat;
+
+                  final recipient = chat.participants.firstWhere(
+                    (participant) => participant.userId != widget.user.uid,
+                  );
+                  _sendGatePassMessage(chat.chatId, recipient.userId);
+
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                       SnackBar(
+                        content: Text('Gate pass forwarded to ${_forwardedToUser!.displayName}'),
+                        backgroundColor: Colors.blue,
+                      ),
+                    );
+
+                } else if (state is ChatDetailsFailure) {
+                  Navigator.of(context, rootNavigator: true).pop();
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.message)));
+                }
+              },
+            ),
+          ],
           child: Column(
             children: [
               Expanded(
@@ -244,22 +406,51 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
                       return Center(child: Text('Error: ${state.message}'));
                     }
                     if (state is MessagesLoaded) {
-                      if (state.messages.isEmpty) {
+                      final allMessages = [
+                        ..._sendingMessages.reversed,
+                        ...state.messages,
+                      ];
+
+                      if (allMessages.isEmpty) {
                         return const Center(
                           child: Text('No messages yet. Say hello!'),
                         );
                       }
+
                       return ListView.builder(
-                        shrinkWrap: true,
+                        // ... your ListView properties are fine
                         reverse: true,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(vertical: 10.0),
-                        itemCount: state.messages.length,
+                        itemCount: allMessages.length,
                         itemBuilder: (context, index) {
-                          final message = state.messages[index];
+                          final message =
+                              allMessages[index]; // Now using the combined list
                           final isMe = message.sentBy == widget.user.uid;
-                          return MessageBubble(message: message, isMe: isMe, currentUser: widget.user,);
-                          // return _MessageBubble(message: message, isMe: isMe);
+                          return MessageBubble(
+                            message: message,
+                            isMe: isMe,
+                            currentUser: widget.user,
+                            onGatePassForward: (selectedUser, gatePass) {
+                              final newParams = RequestGatePassParams(
+                                lotNumber: gatePass.lotNumber,
+                                doNumber: gatePass.doNumber,
+                                vehicleNumber: gatePass.vehicleNumber,
+                                weight: gatePass.weight,
+                                centre: gatePass.centre,
+                                partyName: gatePass.partyName,
+                                requesterId: widget.user.uid,
+                                requesterName: widget.user.displayName,
+                                approverId: selectedUser.uid,
+                                approverName: selectedUser.displayName,
+                              );
+
+                              _forwardedToUser = selectedUser;
+                              _forwardedGatePass = gatePass;
+
+                              context.read<RequestGatePassBloc>().add(
+                                SubmitNewRequest(params: newParams),
+                              );
+                            },
+                          );
                         },
                       );
                     }
@@ -279,7 +470,10 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
                       _messageController.text += emoji.emoji;
                     },
                     onBackspacePressed: () {
-                      _messageController.text = _messageController.text.characters.skipLast(1).toString();
+                      _messageController.text =
+                          _messageController.text.characters
+                              .skipLast(1)
+                              .toString();
                     },
                     config: Config(
                       height: 250,
@@ -429,4 +623,6 @@ class _ChatMessageScreenState extends State<ChatMessageScreen> {
       ),
     );
   }
+
+
 }

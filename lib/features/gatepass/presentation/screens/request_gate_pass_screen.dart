@@ -80,10 +80,8 @@ class _RequestGatePassViewState extends State<RequestGatePassView> {
       builder: (context) {
         // Use a StatefulWidget here to manage the search query state locally
         return Padding(
-          padding:  EdgeInsets.only(
-
+          padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
-
           ),
           child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setModalState) {
@@ -105,8 +103,9 @@ class _RequestGatePassViewState extends State<RequestGatePassView> {
                 maxChildSize: 0.9, // Can be dragged up to 90%
                 builder: (_, scrollController) {
                   return Column(
-                    mainAxisSize: MainAxisSize.min, // Important for Column sizing
+                    mainAxisSize: MainAxisSize.min,
 
+                    // Important for Column sizing
                     children: [
                       // --- Modal Header ---
                       Padding(
@@ -342,55 +341,6 @@ class _RequestGatePassViewState extends State<RequestGatePassView> {
                   _buildSectionHeader(context, "Request Details"),
                   const SizedBox(height: 16),
 
-                  // BlocBuilder<UsersBloc, UsersState>(
-                  //   builder: (context, usersState) {
-                  //     if (usersState is UsersLoading) {
-                  //       return const Center(child: CircularProgressIndicator());
-                  //     }
-                  //     if (usersState is UsersFailure) {
-                  //       return Center(
-                  //         child: Text(
-                  //           'Failed to load users: ${usersState.message}',
-                  //         ),
-                  //       );
-                  //     }
-                  //     if (usersState is UsersLoaded) {
-                  //       // Filter out the current user from the list of approvers
-                  //       final availableUsers =
-                  //           usersState.users
-                  //               .where((user) => user.uid != widget.user.uid)
-                  //               .toList();
-                  //       return DropdownButtonFormField<AuthUserEntity>(
-                  //         value: _selectedUser,
-                  //         decoration: const InputDecoration(
-                  //           labelText: 'Request To',
-                  //           border: OutlineInputBorder(),
-                  //           prefixIcon: Icon(Icons.person_outline),
-                  //         ),
-                  //         hint: const Text('Select an approver'),
-                  //         items:
-                  //             availableUsers
-                  //                 .map(
-                  //                   (user) => DropdownMenuItem<AuthUserEntity>(
-                  //                     value: user,
-                  //                     child: Text(user.displayName),
-                  //                   ),
-                  //                 )
-                  //                 .toList(),
-                  //         onChanged:
-                  //             (user) => setState(() => _selectedUser = user),
-                  //         validator:
-                  //             (value) =>
-                  //                 value == null
-                  //                     ? 'Please select an approver'
-                  //                     : null,
-                  //       );
-                  //     }
-                  //     return const Center(
-                  //       child: Text("Initializing user list..."),
-                  //     );
-                  //   },
-                  // ),
                   BlocBuilder<UsersBloc, UsersState>(
                     builder: (context, usersState) {
                       if (usersState is UsersLoaded) {

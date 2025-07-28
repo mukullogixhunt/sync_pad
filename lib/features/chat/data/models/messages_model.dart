@@ -5,7 +5,7 @@ import '../../domain/entities/messages_entity.dart';
 class MessagesModel extends MessagesEntity {
   MessagesModel({
     required super.messageId,
-    required super.url,
+    required super.storagePath,
     required super.message,
     required super.sentBy,
     required super.status,
@@ -32,7 +32,7 @@ class MessagesModel extends MessagesEntity {
     final data = doc.data() as Map<String, dynamic>; // Safer cast
     return MessagesModel(
       messageId: doc.id,
-      url: data['url'] ?? '',
+      storagePath: data['storagePath'] ?? '',
       message: data['message'] ?? '',
       sentBy: data['sentBy'] ?? '',
       status: data['status'] ?? 'sent',
@@ -45,7 +45,7 @@ class MessagesModel extends MessagesEntity {
   factory MessagesModel.fromEntity(MessagesEntity entity) {
     return MessagesModel(
       messageId: entity.messageId,
-      url: entity.url,
+      storagePath: entity.storagePath,
       message: entity.message,
       sentBy: entity.sentBy,
       status: entity.status,
@@ -57,7 +57,7 @@ class MessagesModel extends MessagesEntity {
   Map<String, dynamic> toJson() {
     return {
       'chatId': messageId,
-      'url': url,
+      'storagePath': storagePath,
       'message': message,
       'sentBy': sentBy,
       'status': status,
@@ -69,7 +69,7 @@ class MessagesModel extends MessagesEntity {
 
   MessagesModel copyWith({
     String? messageId,
-    String? url,
+    String? storagePath,
     String? message,
     String? sentBy,
     String? status,
@@ -79,7 +79,7 @@ class MessagesModel extends MessagesEntity {
   }) {
     return MessagesModel(
       messageId: messageId ?? this.messageId,
-      url: url ?? this.url,
+      storagePath: storagePath ?? this.storagePath,
       message: message ?? this.message,
       sentBy: sentBy ?? this.sentBy,
       status: status ?? this.status,

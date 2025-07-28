@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'core/network/connectivity_service.dart';
+import 'core/utils/storage_service.dart';
 import 'features/auth/auth_injection.dart';
 import 'features/chat/chats_injection.dart';
 import 'features/gatepass/gate_pass_injection.dart';
@@ -23,6 +24,8 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);
   sl.registerLazySingleton<FirebaseStorage>(() => FirebaseStorage.instance);
   sl.registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance);
+
+  sl.registerLazySingleton(() => StorageService(storage: sl()));
 
   // Features
   initAuthFeature();

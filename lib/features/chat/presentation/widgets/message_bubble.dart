@@ -1,23 +1,28 @@
+import 'dart:developer';
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sync_pad/features/chat/domain/entities/messages_entity.dart';
 import 'package:sync_pad/features/chat/presentation/widgets/fullscreen_image_viewer.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/utils/storage_service.dart';
 import '../../../../injection_container.dart';
 import '../../../auth/domain/entities/auth_user_entity.dart';
 import '../../../gatepass/data/models/gate_pass_model.dart';
+import '../../../gatepass/domain/entities/gate_pass_entity.dart';
+import '../../../gatepass/presentation/screens/forward_target_screen.dart';
 import '../../../gatepass/presentation/screens/gate_pass_details_screen.dart'; // <-- Add this import
 
 // You would typically place this widget in its own file, e.g., message_bubble.dart
 class MessageBubble extends StatelessWidget {
   final MessagesEntity message;
   final bool isMe;
-
   final AuthUserEntity currentUser;
 
   const MessageBubble({
@@ -25,45 +30,48 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     required this.isMe,
     required this.currentUser,
+    this.onGatePassForward,
   });
+
+  final Function(AuthUserEntity, GatePassEntity)? onGatePassForward;
 
   Future<void> _openFile(
     BuildContext context,
-    String url,
+    String storagePath,
     String fileName,
   ) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final storageService = sl<StorageService>(); // Instantiate the service
+
     try {
-      // Show a loading indicator
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Downloading $fileName...')));
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Preparing $fileName...')),
+      );
 
-      final dio = Dio();
-      // Get the temporary directory
+      // --- THIS IS THE FINAL FIX ---
+      // 1. Get a FRESH download URL from the permanent storage path.
+      final freshDownloadUrl = await storageService.getDownloadUrl(storagePath);
+
+      // 2. Now, download the file using Dio with the GUARANTEED valid URL.
       final tempDir = await getTemporaryDirectory();
-      final filePath = '${tempDir.path}/$fileName';
+      final localFilePath = '${tempDir.path}/$fileName';
+      await Dio().download(freshDownloadUrl, localFilePath);
 
-      // Download the file
-      await dio.download(url, filePath);
+      scaffoldMessenger.hideCurrentSnackBar();
 
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      // 3. Open the downloaded file.
+      final result = await OpenFile.open(localFilePath);
 
-      // Create a Uri from the local file path
-      final fileUri = Uri.file(filePath);
-
-      // Use url_launcher to open the file
-      if (await canLaunchUrl(fileUri)) {
-        await launchUrl(fileUri);
-      } else {
-        throw Exception('Could not launch $fileUri');
+      if (result.type != ResultType.done) {
+        throw Exception('Could not find an app to open the file.');
       }
+      // --- END ---
     } catch (e) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Error opening file: Could not find an app to open it.',
-          ),
+      log("File open error: $e");
+      scaffoldMessenger.hideCurrentSnackBar();
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Error: Could not open file.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -159,53 +167,17 @@ class MessageBubble extends StatelessWidget {
     MessagesEntity message,
     Color textColor,
   ) {
+    if (message.status == 'sending') {
+      return _buildUploadingBubble(context, message);
+    }
+
     switch (message.type) {
       case 'image':
-        // The unique message ID is perfect for a Hero tag
-        final heroTag = message.messageId;
-        return GestureDetector(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder:
-                    (_) => FullscreenImageViewer(
-                      imageUrl: message.url,
-                      heroTag: heroTag,
-                    ),
-              ),
-            );
-          },
-          child: Hero(
-            tag: heroTag,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 300),
-              child: CachedNetworkImage(
-                imageUrl: message.url,
-                fit: BoxFit.cover,
-                placeholder:
-                    (context, url) => Container(
-                      height: 200,
-                      width: 200,
-                      color: Colors.grey[300],
-                      alignment: Alignment.center,
-                      child: const CircularProgressIndicator(),
-                    ),
-                errorWidget:
-                    (context, url, error) => Container(
-                      height: 200,
-                      width: 200,
-                      color: Colors.grey[300],
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.error, color: Colors.red),
-                    ),
-              ),
-            ),
-          ),
-        );
+        return _CachedImageBubble(message: message);
 
       case 'file': // Assuming 'file' or 'pdf' as the type
         return InkWell(
-          onTap: () => _openFile(context, message.url, message.message),
+          onTap: () => _openFile(context, message.storagePath, message.message),
           child: Container(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -256,6 +228,8 @@ class MessageBubble extends StatelessWidget {
           initialMessage: message.message,
           textColor: textColor,
           currentUser: currentUser,
+          isMe: isMe,
+          onGatePassForward: onGatePassForward,
         );
 
       case 'text':
@@ -269,6 +243,69 @@ class MessageBubble extends StatelessWidget {
           ),
         );
     }
+  }
+
+  Widget _buildUploadingBubble(BuildContext context, MessagesEntity message) {
+    final File localFile = File(message.storagePath);
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Show a local image thumbnail
+        if (message.type == 'image' && localFile.existsSync())
+          ClipRRect(
+            // Use ClipRRect to respect the bubble's border radius
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: Image.file(localFile, fit: BoxFit.cover),
+            ),
+          ),
+
+        // Show a placeholder for a document
+        if (message.type != 'image')
+          Container(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.description_rounded,
+                  color: Colors.grey.shade700,
+                  size: 40,
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    message.message,
+                    style: TextStyle(
+                      color: Colors.grey.shade800,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // The overlay with the scrim and progress indicator
+        Container(
+          constraints: const BoxConstraints(maxHeight: 300),
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            color: Colors.black.withOpacity(0.5),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2.5,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -312,12 +349,16 @@ class _GatePassMessageContent extends StatelessWidget {
     required this.initialMessage,
     required this.textColor,
     required this.currentUser,
+    required this.isMe,
+    this.onGatePassForward,
   });
 
   final String gatePassId;
   final String initialMessage;
   final Color textColor;
   final AuthUserEntity currentUser;
+  final bool isMe;
+  final Function(AuthUserEntity, GatePassEntity)? onGatePassForward;
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +373,6 @@ class _GatePassMessageContent extends StatelessWidget {
         // --- DATA HANDLING ---
         String status =
             'requested'; // Default status if data is loading or missing
-
 
         if (snapshot.connectionState == ConnectionState.active &&
             snapshot.hasData &&
@@ -361,10 +401,7 @@ class _GatePassMessageContent extends StatelessWidget {
         // --- THE UI RENDERED BY THE STREAMBUILDER ---
         return GestureDetector(
           onTap: () {
-
             final gatePass = GatePassModel.fromFirestore(snapshot.data!);
-
-
 
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
@@ -376,6 +413,31 @@ class _GatePassMessageContent extends StatelessWidget {
               ),
             );
           },
+
+          onLongPress:
+              isMe
+                  ? null
+                  : () async {
+                    final selectedUser = await Navigator.of(
+                      context,
+                    ).push<AuthUserEntity>(
+                      MaterialPageRoute(
+                        builder:
+                            (_) => ForwardTargetScreen(
+                              currentUser: currentUser,
+                            ), // Pass the current user
+                      ),
+                    );
+
+                    final gatePass = GatePassModel.fromFirestore(
+                      snapshot.data!,
+                    );
+
+                    if (selectedUser != null && onGatePassForward != null) {
+                      onGatePassForward!(selectedUser, gatePass);
+                    }
+                  },
+
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
@@ -453,7 +515,8 @@ class _GatePassMessageContent extends StatelessWidget {
         return Colors.green.shade700;
       case 'declined':
         return Colors.red.shade700;
-      case 'completed': return Colors.blue.shade600;
+      case 'completed':
+        return Colors.blue.shade600;
 
       default: // 'requested'
         return Colors.orange.shade800;
@@ -466,7 +529,8 @@ class _GatePassMessageContent extends StatelessWidget {
         return Icons.check_circle;
       case 'declined':
         return Icons.cancel;
-      case 'completed': return Icons.task_alt_rounded;
+      case 'completed':
+        return Icons.task_alt_rounded;
 
       default: // 'requested'
         return Icons.hourglass_top_rounded;
@@ -479,10 +543,121 @@ class _GatePassMessageContent extends StatelessWidget {
         return "Request ACCEPTED";
       case 'declined':
         return "Request DECLINED";
-        case 'completed':
+      case 'completed':
         return "Request COMPLETED";
       default: // 'requested'
         return "Request SENT";
     }
+  }
+}
+
+class _CachedImageBubble extends StatefulWidget {
+  final MessagesEntity message;
+
+  const _CachedImageBubble({required this.message});
+
+  @override
+  State<_CachedImageBubble> createState() => _CachedImageBubbleState();
+}
+
+class _CachedImageBubbleState extends State<_CachedImageBubble> {
+  // State variable to hold the URL. It's nullable to represent the loading state.
+  String? _freshDownloadUrl;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch the URL only ONCE when the widget is first created.
+    _getFreshUrl();
+  }
+
+  Future<void> _getFreshUrl() async {
+    try {
+      final url = await sl<StorageService>().getDownloadUrl(
+        widget.message.storagePath,
+      );
+      // If the widget is still mounted, update the state with the URL.
+      if (mounted) {
+        setState(() {
+          _freshDownloadUrl = url;
+          _hasError = false;
+        });
+      }
+    } catch (e) {
+      log("Failed to get image URL: $e");
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final heroTag = widget.message.messageId;
+
+    // --- RENDER BASED ON THE STATE VARIABLE ---
+
+    // 1. If there was an error getting the URL
+    if (_hasError) {
+      return Container(
+        height: 200,
+        width: 200,
+        color: Colors.grey[300],
+        alignment: Alignment.center,
+        child: const Icon(Icons.error, color: Colors.red),
+      );
+    }
+
+    // 2. If the URL is still loading (_freshDownloadUrl is null)
+    if (_freshDownloadUrl == null) {
+      return Container(
+        height: 200,
+        width: 200,
+        color: Colors.grey[300],
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(),
+      );
+    }
+
+    // 3. If we have the URL, build the actual image viewer
+    return GestureDetector(
+      onTap: () {
+        // We can safely use the non-null _freshDownloadUrl here.
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder:
+                (_) => FullscreenImageViewer(
+                  imageUrl: _freshDownloadUrl!,
+                  heroTag: heroTag,
+                ),
+          ),
+        );
+      },
+      child: Hero(
+        tag: heroTag,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: CachedNetworkImage(
+            imageUrl: _freshDownloadUrl!,
+            fit: BoxFit.cover,
+            placeholder:
+                (context, url) => Container(
+                  color: Colors.grey[300],
+                  alignment: Alignment.center,
+                  child: const CircularProgressIndicator(),
+                ),
+            errorWidget:
+                (context, url, error) => Container(
+                  color: Colors.grey[300],
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.error, color: Colors.red),
+                ),
+          ),
+        ),
+      ),
+    );
   }
 }

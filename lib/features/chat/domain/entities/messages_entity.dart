@@ -1,6 +1,6 @@
 class MessagesEntity {
   final String messageId;
-  final String url;
+  final String storagePath;
   final String message;
   final String sentBy;
   final String status;
@@ -11,7 +11,7 @@ class MessagesEntity {
 
   MessagesEntity({
     required this.messageId,
-    required this.url,
+    required this.storagePath,
     required this.message,
     required this.sentBy,
     required this.status,
